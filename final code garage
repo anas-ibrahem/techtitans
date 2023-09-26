@@ -1,0 +1,426 @@
+// 1,2 elec
+// s small for pin numbers
+// S capital for reading
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <Servo.h>
+#define QUEUE_SIZE 4
+#define blue_amood 1
+#define green_amood 2
+#define red_amood 12
+#define ir_outside 6
+#define ir_inside 5
+#define fire_sensor A0
+#define buzzer 12
+#define fire_led 9
+#define s1 2
+#define s2 3
+#define s3 7
+#define s4 4
+#define emergency_button 8
+#define light 10 
+#define ldr A2
+#define paymentbutton 1
+int carQueue[QUEUE_SIZE];  // Array to hold car IDs
+int frontIndex = 0;        // Index to keep track of the front of the queue
+int rearIndex = 0;
+int buzzerstate=0;
+void enqueueCar(int carID) {
+  // Add a car ID to the queue
+  carQueue[rearIndex] = carID;
+  rearIndex = (rearIndex + 1) % QUEUE_SIZE;  // Move rearIndex circularly
+}
+int dequeueCar() {
+  // Remove and return a car ID from the queue
+  int carID = carQueue[frontIndex];
+  frontIndex = (frontIndex + 1) % QUEUE_SIZE;  // Move frontIndex circularly
+  return carID;
+}
+int cost[4]={0,0,0,0};
+int paid[4]={0,0,0,0};
+int time_slots[4]={0,0,0,0};
+int time_entered[4]={0,0,0,0};
+int pricepersecond=1;
+int filled=0;
+Servo motor;
+LiquidCrystal_I2C lcd_out(0x26,16,2);
+LiquidCrystal_I2C lcd_in(0x27,16,2);
+unsigned int lastDebounceTime=0;
+int input_1, input_2=0;
+int S1,S2,S3,S4=0;// S capital for reading
+int i = 95;
+int lastButtonState,emergencystate = 0;
+
+
+void turnoffemergency(){
+  digitalWrite(buzzer,LOW);
+  buzzerstate=0;
+  digitalWrite(fire_led,LOW);
+
+}
+
+void turnonemergency(){
+  tone(buzzer,500,500);
+  buzzerstate=1;
+  digitalWrite(fire_led,HIGH);
+   delay(500);
+  digitalWrite(fire_led,LOW);
+
+
+}
+void check_payment() {
+  
+    }
+     
+      
+void open_gate()
+{if (i==-5)
+   {for(i=0;i<=90;i+=5)
+      {motor.write(i);
+       delay(30);} }
+}
+
+
+void close_gate()
+{ if(i==95)
+ { for(i=90;i>=0;i-=5)
+      {motor.write(i);
+      delay(30);}}
+}
+
+  
+void amood() { // done
+   int elec_avb=2-(S1+S2);
+   int norm_avb=2-(S3+S4);//to be changed when we know the sensors
+      
+  if (elec_avb > 0) {
+    digitalWrite(blue_amood, HIGH);
+    digitalWrite(red_amood, LOW);
+  }
+  
+  if (norm_avb > 0) {
+    digitalWrite(green_amood, HIGH);
+    digitalWrite(red_amood, LOW);
+  }
+
+  if ((elec_avb || norm_avb) == 0) {
+    digitalWrite(red_amood, HIGH);
+    digitalWrite(blue_amood, LOW);
+    digitalWrite(green_amood, LOW);
+  }
+  }
+
+  
+void flame_emergency(){//  check if theres any kind of emergency and take action based on what kind of emergency
+int Sensor = analogRead(fire_sensor);
+emergencybuttoncheck();
+if(Sensor < 850)
+{      lcd_in.clear();
+       lcd_in.setCursor(0, 0);
+       lcd_in.print("Emergency");
+       lcd_in.setCursor(0, 1);
+       lcd_in.print("Please leave");
+       lcd_out.clear();
+       lcd_out.setCursor(0, 0);
+       lcd_out.print("Emergency");
+       lcd_out.setCursor(0, 1);
+       lcd_out.print("Please leave");
+    while (1)
+    {
+        turnonemergency();
+        open_gate();
+        delay(1000);
+        Sensor = analogRead(fire_sensor);
+         if (Sensor >= 850)
+         { lcd_out.clear();
+           lcd_in.clear();
+           turnoffemergency();
+           close_gate();
+           delay(500);
+           break;
+
+         }
+    }
+     }
+
+
+    else if (emergencystate==1){
+       lcd_in.clear();
+       lcd_in.setCursor(0, 0);
+       lcd_in.print("There's a Thief");
+       lcd_in.setCursor(0, 1);
+       lcd_in.print("Please Take care");
+       lcd_out.clear();
+       lcd_out.setCursor(0, 0);
+       lcd_out.print("There's a Thief");
+       lcd_out.setCursor(0, 1);
+       lcd_out.print("Please Take care");
+     while (1)
+     {  
+        turnonemergency();
+        delay(1000);
+        close_gate();
+        emergencybuttoncheck();
+         if (emergencystate==0)
+         { lcd_in.clear();
+           lcd_out.clear();
+           turnoffemergency();
+           close_gate();
+
+           delay(500);
+           break;
+
+         }
+     }
+    
+    }
+}
+
+void check_slots(){//done
+
+
+S1=digitalRead(s1);
+S2=digitalRead(s2);
+S3=digitalRead(s3);
+S4=digitalRead(s4);
+
+filled=((S1==1)&&(S2==1)&&(S3==1)&&(S4==1));
+
+ if (!filled){
+  lcd_out.clear();
+  if (S1 == 1) {
+    lcd_out.setCursor(0, 0);
+    lcd_out.print("s1:F");
+  } else  {
+    lcd_out.setCursor(0, 0);
+    lcd_out.print("s1:E");
+  }
+
+  if (S2 == 1) {
+    lcd_out.setCursor(8, 0);
+    lcd_out.print("s2:F");
+  } else  {
+    lcd_out.setCursor(8, 0);
+    lcd_out.print("s2:E");
+  }
+
+  if (S3 == 1) {
+    lcd_out.setCursor(0, 1);
+    lcd_out.print("s3:F");
+  } else {
+    lcd_out.setCursor(0, 1);
+    lcd_out.print("s3:E");
+  }
+
+  if (S4 == 1) {
+    lcd_out.setCursor(8, 1);
+    lcd_out.print("s4:F");
+  } else  {
+    lcd_out.setCursor(8, 1);
+    lcd_out.print("s4:E");
+  }
+
+  
+ }
+
+  if (filled) {
+    lcd_out.clear();
+    lcd_out.setCursor(0, 0);
+    lcd_out.print("Parking is full"); 
+  }
+
+  
+}
+
+
+
+
+
+
+void emergencybuttoncheck (){ //check the emergency button and change the state of the emergency with debouncing
+
+int reading = digitalRead(emergency_button);
+if ((reading == 1) && (lastButtonState == 0)) // depends pull up or down
+  { emergencystate=!emergencystate;
+  delay (30);}
+
+
+lastButtonState = reading;
+
+}
+
+
+void light_system() {
+
+int range= analogRead(ldr);
+if (range<900) 
+  {digitalWrite(light,LOW);}
+else if (range>900)
+  {digitalWrite(light,HIGH);}
+
+
+
+
+}
+
+ 
+
+
+
+
+void setup() {
+  motor.attach(11);
+  pinMode(blue_amood, OUTPUT);
+  pinMode(green_amood, OUTPUT);
+  pinMode(red_amood, OUTPUT);
+  pinMode(ir_inside,INPUT);
+  pinMode(ir_outside,INPUT);
+  pinMode(buzzer,OUTPUT);
+  pinMode(fire_led,OUTPUT);
+  pinMode(s1,INPUT);
+  pinMode(s2,INPUT);
+  pinMode(s3,INPUT);
+  pinMode(s4,INPUT);
+  pinMode(fire_sensor,INPUT);
+  pinMode(emergency_button,INPUT);
+  pinMode(ldr,INPUT);
+  pinMode(light,OUTPUT);
+  close_gate();
+  Serial.begin(9600);
+  lcd_out.init();
+  lcd_out.backlight();
+  lcd_out.clear();
+  lcd_in.init();
+  lcd_in.backlight();
+  lcd_in.clear();
+  lcd_out.clear();
+  lcd_out.setCursor(0, 0);
+  lcd_out.print("Loading...");
+  lcd_out.setCursor(0, 1);
+  lcd_out.print("By Tech Titans");
+  delay(3000);
+  lcd_out.clear();
+}
+
+void loop() {
+
+
+ 
+light_system();
+flame_emergency();
+check_slots();
+
+if ((S1==1))
+ {delay(1200);
+ if (time_entered[0]==0&&(S1==1)){delay(1200);
+  time_entered[0]=millis();
+  paid[0]=0;}}
+
+
+if((S1==0))
+{delay(700);
+if ((time_entered[0]!=0)&&(S1==0)){
+ delay(700);
+time_slots[0]=millis()-time_entered[0];
+cost[0]=time_slots[0]*0.001*pricepersecond;
+enqueueCar(1);}}
+
+if ((S2==1))
+ {delay(1200);
+ if (time_entered[1]==0&&(S2==1)){delay(1200);
+  time_entered[1]=millis();
+  paid[1]=0;}}
+if((S2==0))
+{delay(700);
+if ((time_entered[1]!=0)&&(S2==0)){
+ delay(700);
+time_slots[1]=millis()-time_entered[1];
+cost[1]=time_slots[1]*0.001*pricepersecond;
+enqueueCar(2);}}
+
+if ((S3==1))
+ {delay(1200);
+ if (time_entered[2]==0&&(S3==1)){delay(1200);
+  time_entered[2]=millis();
+  paid[2]=0;}}
+if((S3==0))
+{delay(700);
+if ((time_entered[2]!=0)&&(S3==0)){
+ delay(700);
+time_slots[2]=millis()-time_entered[2];
+cost[2]=time_slots[2]*0.001*pricepersecond;
+enqueueCar(3);}}
+
+if ((S4==1))
+ {delay(1200);
+ if (time_entered[3]==0&&(S4==1)){delay(1200);
+  time_entered[3]=millis();
+  paid[3]=0;}}
+if((S4==0))
+{delay(700);
+if ((time_entered[3]!=0)&&(S4==0)){
+ delay(700);
+time_slots[3]=millis()-time_entered[3];
+cost[3]=time_slots[3]*0.001*pricepersecond;
+enqueueCar(4);}}
+
+
+
+
+
+
+input_1=digitalRead( ir_outside);
+input_2=digitalRead( ir_inside);
+
+
+
+   flame_emergency(); // call it many times to check if there's an emergency
+    int carID = carQueue[frontIndex];
+    int carCost = cost[carID - 1]; // Queue is 0-indexed, car IDs are 1-indexed we used queue to make cars pay in order of leaving the parking
+    if ((frontIndex != rearIndex)&&(carCost>0)) {
+      
+      lcd_in.clear();
+      lcd_in.setCursor(0, 0);
+      lcd_in.print("S" + String(carID) + " Please pay: ");
+      lcd_in.setCursor(6, 1);
+      lcd_in.print(carCost);
+      lcd_in.print("LE");
+       flame_emergency();
+       delay(3000);
+       flame_emergency();
+        lcd_in.clear();
+        lcd_in.setCursor(0, 0);
+        lcd_in.print("Payment done");
+        lcd_in.setCursor(0, 1);
+        lcd_in.print("Thank you");
+        paid[carID - 1] = 1;
+        time_entered[carID - 1] = 0;
+        time_slots[carID - 1]=0;
+        dequeueCar();
+        delay(2000);
+        lcd_in.clear();
+        open_gate();
+        delay(3000);  
+        close_gate();
+
+   } else if ((((input_1==1)&&(input_2==0))&&(!filled))&&(frontIndex == rearIndex)){
+      open_gate(); 
+      delay(3000);
+      close_gate();}
+    
+    flame_emergency(); // call it many times to check if there's an emergency
+
+          if (frontIndex == rearIndex) 
+           {
+            lcd_in.clear();
+            lcd_in.setCursor(0, 0);
+            lcd_in.print("WELCOME By :)");
+            lcd_in.setCursor(0, 1);
+            lcd_in.print("TECH TITANS");
+            }
+            
+
+
+
+
+}
