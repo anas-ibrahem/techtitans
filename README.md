@@ -25,5 +25,7 @@ Description :
 .LED lights are installed within the garage for illumination and an LDR continuously monitors ambient light conditions, If it is dark, the LDR signals the LED lights to turn on, ensuring adequate lighting within the garage, and In daylight or well-lit conditions, the LDR signals the LEDs to turn off, saving energy and electricity.
 
 
+
+
 Second We have Maze-Solver & Bluetooth Car AKA "AZZA" 🚗:
 
